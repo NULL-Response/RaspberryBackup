@@ -1,7 +1,13 @@
-主要有3点改动：备份/区时使用tar法；修改了获取gid的方法；增加了fdisk -l在boot分区前有无"*"的判断。
-另外改正了1处：bootsz=`df -P | grep $dev_boot | awk '{print $2}'改为bootsz=`df -P | grep $dev_boot | awk '{print $3}'
-
-##RaspberryBackup
+主要有3点改动：增加了备份/区时使用tar法的脚本；修改了获取gid的方法；增加了fdisk -l在boot分区前有无"*"的判断。
+另外改正了1处：
+```
+bootsz=`df -P | grep $dev_boot | awk '{print $2}'
+```
+改为
+```
+bootsz=`df -P | grep $dev_boot | awk '{print $3}'
+```
+</h3>RaspberryBackup</h3>
 
 在Linux系统中一键备份树莓派系统SD卡的脚本
 脚本文件来源：https://blog.csdn.net/qingtian11112/article/details/99825257
