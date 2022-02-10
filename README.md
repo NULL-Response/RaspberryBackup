@@ -1,3 +1,6 @@
+主要有3点改动：备份/区时使用tar法；修改了获取gid的方法；增加了fdisk -l在boot分区前有无"*"的判断。
+另外改正了1处：bootsz=`df -P | grep $dev_boot | awk '{print $2}'改为bootsz=`df -P | grep $dev_boot | awk '{print $3}'
+
 ##RaspberryBackup
 
 在Linux系统中一键备份树莓派系统SD卡的脚本
@@ -13,4 +16,3 @@ step3：进入脚本文件 rpi-backup.sh 所在目录，只需要下面两行命
 sudo chmod +x rpi-backup.sh            #需要赋可执行权限
 
 ./rpi-backup.sh /dev/sdb1 /dev/sdb2    #脚本执行有两个参数，第一个参数是树莓派SD卡`/boot`分区的设备名：/dev/sdb1，第二个参数是`/`分区的设备名：/dev/sdb2，视情况修改）
-
