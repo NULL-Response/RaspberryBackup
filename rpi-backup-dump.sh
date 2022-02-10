@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [  $# != 2 ]; then
+if [ $# != 2 ]; then
   echo "argument error: Usage: $0 boot_device_name root_device_name"
   echo "example: $0 /dev/mmcblk0p1 /dev/mmcblk0p2"
   exit 0
@@ -19,10 +19,8 @@ mkdir ~/backupimg
 cd ~/backupimg
 
 echo ===================== part 2, create a new blank img ===============================
-# New img file
-#sudo rm $img
-
-bootsz=`df -P | grep $dev_boot | awk '{print $2}'`
+echo "creating new blank img..."
+bootsz=`df -P | grep $dev_boot | awk '{print $3}'`
 rootsz=`df -P | grep $dev_root | awk '{print $3}'`
 totalsz=`echo $bootsz $rootsz | awk '{print int(($1+$2)*1.3/1024)}'`
 sudo dd if=/dev/zero of=$img bs=1M count=$totalsz
@@ -32,10 +30,14 @@ echo "...created a blank img, size ${totalsz}M "
 # format virtual disk
 bootstart=`sudo fdisk -l | grep $dev_boot | awk '{print $2}'`
 bootend=`sudo fdisk -l | grep $dev_boot | awk '{print $3}'`
+#有些系统 sudo fdisk -l 时boot分区的boot标记会标记为*,此时bootstart和bootend最后应改为 $3 和 $4
+first_mark=`sudo fdisk -l | grep $dev_boot | awk '{print $1}'`
+if [ "$first_mark" == "*" ]; then
+    $bootstart=$bootend
+    $bootend=`sudo fdisk -l | grep $dev_boot | awk '{print $4}'`
+fi
 rootstart=`sudo fdisk -l | grep $dev_root | awk '{print $2}'`
 echo "boot: $bootstart >>> $bootend, root: $rootstart >>> end"
-#有些系统 sudo fdisk -l 时boot分区的boot标记会标记为*,此时bootstart和bootend最后应改为 $3 和 $4
-#rootend=`sudo fdisk -l /dev/mmcblk0 | grep mmcblk0p2 | awk '{print $3}'`
 
 sudo parted $img --script -- mklabel msdos
 sudo parted $img --script -- mkpart primary fat32 ${bootstart}s ${bootend}s
@@ -43,18 +45,17 @@ sudo parted $img --script -- mkpart primary ext4 ${rootstart}s -1
 
 echo =====================  part 3, mount img to system  ===============================
 loopdevice=`sudo losetup -f --show $img`
-device=/dev/mapper/`sudo kpartx -va $loopdevice | sed -E 's/.*(loop[0-9])p.*/\1/g' | head -1`
+device=/dev/mapper/`sudo kpartx -av $loopdevice | sed -E 's/.*(loop[0-9])p.*/\1/g' | head -1`
 sleep 5
-sudo mkfs.vfat ${device}p1 -n boot
-sudo mkfs.ext4 ${device}p2 -L rootfs
+sudo mkfs.vfat -n boot ${device}p1
+sudo mkfs.ext4 -L rootfs ${device}p2
 #在backupimg文件夹下新建两个文件夹，将两个分区挂载在下面
 mkdir tgt_boot tgt_Root
-#这里没有使用id命令来查看uid和gid，而是假设uid和gid都和当前用户名相同
-uid=`whoami`
-gid=$uid
-sudo mount -t vfat -o uid=${uid},gid=${gid},umask=0000 ${device}p1 ./tgt_boot/
-sudo mount -t ext4 ${device}p2 ./tgt_Root/
 
+uid=`whoami`
+gid=`id $uid | awk '{print $2}' | awk 'BEGIN{FS="("} {print $NF}' | awk 'BEGIN{FS=")"} {print $1}'`
+sudo mount -t vfat -o uid=${uid},gid=${gid},umask=0000 ${device}p1 ./tgt_boot
+sudo mount -t ext4 ${device}p2 ./tgt_Root
 
 echo ===================== part 4, backup /boot =========================
 sudo cp -rfp ${mounted_boot}/* ./tgt_boot/
@@ -63,12 +64,12 @@ echo "...Boot partition done"
 
 echo ===================== part 5, backup / =========================
 sudo chmod 777 ./tgt_Root
-sudo chown ${uid}.${gid} tgt_Root
+sudo chown ${uid}.${gid} ./tgt_Root
 sudo rm -rf ./tgt_Root/*
-cd tgt_Root/
+cd tgt_Root
 # start backup
-sudo dump -0uaf - ${mounted_root}/ | sudo restore -rf -
-sync 
+sudo dump -0uaf - ${mounted_root} | sudo restore -rf -
+sync
 echo "...Root partition done"
 cd ..
 
@@ -95,6 +96,5 @@ sudo umount tgt_boot tgt_Root
 sudo kpartx -d $loopdevice
 sudo losetup -d $loopdevice
 rmdir tgt_boot tgt_Root
-
 
 echo "==== All done. img file is under ~/backupimg/ "
